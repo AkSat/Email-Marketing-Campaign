@@ -1,0 +1,17 @@
+########### A. Find count of leads with information about members of their household. ############
+
+hadoop jar calcHLD1.jar com.jigsaw.CalcHHLD1 /user/hduser/jig10122/capstone/graded/pigOutStatus/part-m-00000 /user/hduser/jig10122/capstone/graded/mapreduceStatusCount1
+
+
+
+
+########### B.  Find count of total number of household members information is available. ############
+
+hadoop jar calcHLD2.jar com.jigsaw.CalcHHLD2 /user/hduser/jig10122/capstone/graded/pigOutStatus/part-m-00000 /user/hduser/jig10122/capstone/graded/mapreduceStatusCount2
+
+
+
+
+########### C. Find count of household members by type ############
+
+hadoop jar calcHLDtype.jar com.jigsaw.CalcHHLDType /user/hduser/jig10122/capstone/graded/pigOutStatus/part-m-00000 /user/hduser/jig10122/capstone/graded/mapreduceStatusType
