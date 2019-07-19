@@ -1,0 +1,375 @@
+Steps :
+-> run hdfsputscript.sh
+./hdfsputscript.sh /home/hduser/jig10122/Capstone/Graded/CampaignData_full-2.csv /user/hduser/jig10122/capstone/graded
+
+-> create configtab file having description for codes required
+
+-> run finalpigscript.pig
+
+-> run mapreduce programs
+
+-> run finalhivescript.hql 
+
+
+
+Tables required :
+
+configdetail
+customerctor
+customerhousehold
+
+
+create external table jig10122.customerCTOR
+(clickFlag string,
+openFlag string,
+date string,
+day string,
+month string,
+year int,
+timestamp string,
+ampm string,
+gender string,
+income string,
+ethnicity string,
+householdStatus string)
+row format delimited 
+fields terminated by '|'
+lines terminated by '\n'
+stored as textfile
+location '/user/hduser/jig10122/capstone/graded/pigoutput1'
+
+
+create external table jig10122.customerHousehold
+(gender0to3 string,
+gender10to12 string,
+gender13to18 string,
+gender4to6 string,
+gender7to9 string,
+noOfChildren18OrLess string,
+presenceOfChildren string,
+statusmem1 string,
+statusmem2 string,
+statusmem3 string,
+statusmem4 string,
+statusmem5 string,
+statusmem6 string,
+statusmem7 string,
+statusmem8 string)
+row format delimited 
+fields terminated by '|'
+lines terminated by '\n'
+stored as textfile
+location '/user/hduser/jig10122/capstone/graded/pigoutput2'
+
+
+
+
+1. Find the Click to Open Rate (CTOR) --- all solved using hive queries
+
+A. Overall CTOR (use CLICK_FLG   and OPEN_FLG  column) 
+
+create table cust_ClickToOpenRatio as                                                  
+select                                                                                 
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' ;
+
+B. CTOR by Gender (use I1_GNDR_CODE   column) 
+create table cust_ClickToOpenRatio_Gender as                                                  
+select  gender,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by gender ;
+
+
+create table final_custCTORGender as 
+select c.*,a.overallctor from (select b.gender,b.desc from configdetail c lateral view explode(c.genderCode)b as gender,desc)c
+full outer join cust_clicktoopenratio_gender a
+on a.gender=c.gender;
+
+
+C. CTOR by Time of the day (use mailed_date column) 
+
+create table cust_ClickToOpenRatio_Time as                                                  
+select  timestamp,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by timestamp ;
+
+
+D. CTOR by Day of the week(use mailed_date column) 
+
+create table cust_ClickToOpenRatio_DayWeek as                                                  
+select  day,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by day ;
+
+
+E. CTOR by Month (use mailed_date column) 
+
+create table cust_ClickToOpenRatio_Month as                                                  
+select  month,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by month ;
+
+
+F. CTOR by Lead’s Income Group (use TRW_INCOME_CD_V4 column)
+
+create table cust_ClickToOpenRatio_Income as                                                  
+select  income,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by income ;
+
+
+create table final_custCTORIncomeGrp as 
+select c.*,a.overallctor from (select b.incomeGrp,b.desc from configdetail a lateral view explode(a.incomeGrpCode)b as incomeGrp,desc)c
+full outer join cust_clicktoopenratio_income a
+on a.income=c.incomeGrp;
+
+
+G. CTOR by Lead’s Ethnicity (use ASIAN_CD column)
+
+create table cust_ClickToOpenRatio_Ethnicity as                                                  
+select  ethnicity,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by ethnicity ;
+
+create table final_custCTOREthnicity as 
+select c.*,a.overallctor from (select b.ethnicity,b.desc from configdetail a lateral view explode(a.ethnicityCode)b as ethnicity,desc)c
+full outer join cust_clicktoopenratio_ethnicity a
+on a.ethnicity=c.ethnicity;
+
+
+H. CTOR by Lead’s Household Status (use I1_INDIV_HHLD_STATUS_CODE  column)
+
+create table cust_ClickToOpenRatio_HHStatus as                                                  
+select  householdstatus,                                                                               
+ROUND(SUM(CASE WHEN clickFlag=='Y' THEN 1 ELSE 0 END)/COUNT(*) * 100,2) as overallCTOR 
+from customerCTOR                                                                      
+where openFlag='Y' 
+group by householdstatus;
+
+create table final_custCTORHHLDStatus as 
+select c.*,a.overallctor from (select b.hhldstat,b.desc from configdetail a lateral view explode(a.hhldstatCode)b as hhldstat,desc)c
+full outer join cust_clicktoopenratio_hhstatus a
+on a.householdstatus=c.hhldstat;
+
+
+
+
+2. Household Members Information
+
+A. Find count of leads with information about members of their household. If a  lead has information about 3 members, and another has information about 2  members and another has none, then the answer to this question is 2. (use statcd_hh_mem1  - statcd_hh_mem8     column)
+--> solved using :
+--hive query OR
+--mapreduce
+
+
+---> Using hive query :
+
+create view hhm_binary_1 as
+select  
+(CASE WHEN (statusmem1=='null' OR statusmem1=='U') then 0   
+ELSE 1 END) as hhm1,
+(CASE WHEN (statusmem2=='null' OR statusmem2=='U') then 0   
+ELSE 1 END) as hhm2,
+(CASE WHEN (statusmem3=='null' OR statusmem3=='U') then 0   
+ELSE 1 END) as hhm3,
+(CASE WHEN (statusmem4=='null' OR statusmem4=='U') then 0   
+ELSE 1 END) as hhm4,
+(CASE WHEN (statusmem5=='null' OR statusmem5=='U') then 0   
+ELSE 1 END) as hhm5,
+(CASE WHEN (statusmem6=='null' OR statusmem6=='U') then 0   
+ELSE 1 END) as hhm6,
+(CASE WHEN (statusmem7=='null' OR statusmem7=='U') then 0   
+ELSE 1 END) as hhm7,
+(CASE WHEN (statusmem8=='null' OR statusmem8=='U') then 0   
+ELSE 1 END) as hhm8
+from customerHousehold;
+
+
+create table leadCount_HHLDInfoAvailable as select SUM(hhm1 + hhm2 + hhm3 + hhm4 + hhm5 + hhm6 + hhm7 + hhm8) as total from hhm_binary_1;
+
+
+---> Using mapreduce :
+
+hadoop jar calcHLD1.jar com.jigsaw.CalcHHLD1 /user/hduser/jig10122/capstone/graded/pigOutStatus/part-m-00000 /user/hduser/jig10122/capstone/graded/mapreduceStatusCount1
+
+
+
+B.  Find count of total number of household members information is available.For  example, if a lead has 3 household members, and another has about 2  members, and the other has none, then the totalcount of household members  is 3+2+0 = 5.
+--> solved using :
+--hive query OR
+--mapreduce
+
+
+---> Using hive query :
+
+create view hhm_binary_2 as
+select  
+(CASE WHEN (statusmem1=='null') then 0   
+ELSE 1 END) as hhm1,
+(CASE WHEN (statusmem2=='null') then 0   
+ELSE 1 END) as hhm2,
+(CASE WHEN (statusmem3=='null') then 0   
+ELSE 1 END) as hhm3,
+(CASE WHEN (statusmem4=='null') then 0   
+ELSE 1 END) as hhm4,
+(CASE WHEN (statusmem5=='null') then 0   
+ELSE 1 END) as hhm5,
+(CASE WHEN (statusmem6=='null' ) then 0   
+ELSE 1 END) as hhm6,
+(CASE WHEN (statusmem7=='null' ) then 0   
+ELSE 1 END) as hhm7,
+(CASE WHEN (statusmem8=='null' ) then 0   
+ELSE 1 END) as hhm8
+from customerHousehold;
+
+create table leadTotal_HHLDInfoAvailable as select SUM(hhm1 + hhm2 + hhm3 + hhm4 + hhm5 + hhm6 + hhm7 + hhm8) as total from hhm_binary_2;
+
+
+---> Using mapreduce :
+
+hadoop jar calcHLD2.jar com.jigsaw.CalcHHLD2 /user/hduser/jig10122/capstone/graded/pigOutStatus/part-m-00000 /user/hduser/jig10122/capstone/graded/mapreduceStatusCount2
+
+
+
+C. Find count of household members by type (Head of Household, Spouse etc.).
+--> solved using :
+--pig	OR
+--mapreduce 
+
+
+---> Using pig :
+
+getStatus = foreach householdDataManipulated generate statusmem1,statusmem2,statusmem3,statusmem4,statusmem5,statusmem6,statusmem7,statusmem8;
+getstatus1 = foreach getStatus generate FLATTEN(TOBAG(*)) as hhldtype
+grouped = group getstatus1 by hhldtype;
+getTypeCount = foreach grouped generate group as hhldType,COUNT(getstatus1) as total;
+
+
+---> Using mapreduce :
+hadoop jar calcHLDtype.jar com.jigsaw.CalcHHLDType /user/hduser/jig10122/capstone/graded/pigOutStatus/part-m-00000 /user/hduser/jig10122/capstone/graded/mapreduceStatusType
+
+create external table custHHLDByType
+ (hhldCode string,totalNum int)
+ comment 'Description of household types and their numbers'
+ row format delimited
+ fields terminated by '\t'
+ lines terminated by '\n'
+ stored as textfile
+ location '/user/hduser/jig10122/capstone/graded/mapreduceStatusType'
+ ;
+
+create table final_custHHLDByType as 
+select a.hhldCode,a.totalNum,c.desc from (select b.hhldstat,b.desc from configdetail a lateral view explode(a.hhldstatCode)b as hhldstat,desc)c
+join custHHLDByType a
+on a.hhldCode=c.hhldstat;
+
+
+
+D. %age of household members type. For example, if there are 5 Head of  Household, 10 Spouse and 85 in the other categories, then the %age of  Spouses is10.
+-- pig
+
+---> Using pig :
+getstatus1 = foreach getStatus generate FLATTEN(TOBAG(*)) as hhldtype
+grouped = group getstatus1 by hhldtype;
+getTypeCount = foreach grouped generate group as hhldType,COUNT(getstatus1) as total;
+groupAll = group getTypeCount ALL;
+getGrandTotal = foreach groupAll generate SUM(getTypeCount.total) as grandTotal;
+getPercentage = foreach getTypeCount generate $0,$1,$1/(float)getGrandTotal.grandTotal * 100 as percent1;
+
+create external table custHHLDByTypePercent
+ (hhldCode string,
+totalNum int,
+percentage float)
+ comment 'Description of household types and their numbers'
+ row format delimited
+ fields terminated by '|'
+ lines terminated by '\n'
+ stored as textfile
+ location '/user/hduser/jig10122/capstone/graded/pigOutStatusTypePercent'
+ ;
+
+create table final_custHHLDByTypePercent as 
+select a.hhldCode,a.totalNum,a.percentage,c.desc from (select b.hhldstat,b.desc from configdetail a lateral view explode(a.hhldstatCode)b as hhldstat,desc)c
+full outer join custHHLDByTypePercent a
+on a.hhldCode=c.hhldstat;
+
+
+
+2. Household Members Information
+
+E. How many known households havechildren? (use PRESENCE_OF_CHLDRN    column) 
+--hive query
+
+---> Using hive query :
+create table custHHLDPresenceY as select count(*) as NoOfHHLSWithChildren from customerhousehold where presenceofchildren = 'Y';
+
+
+
+F.   Overall, how many children are there? (use NUMBER_OF_CHLDRN_18_OR_LESS   column  and         PRESENCE_OF_CHLDRN )
+--> solved using :
+--hive query OR
+--pig
+
+---> Using hive query :
+create table hivetotalChildren_PresenceY as select SUM(CAST(noofchildren18orless AS TINYINT)) from customerhousehold where presenceofchildren='Y';
+
+---> Using pig :
+
+getChildrenDetails = foreach householdDataManipulated generate (int)noOfChildren18OrLess,presenceOfChildren;
+getPresenceY = filter getChildrenDetails by presenceOfChildren=='Y'
+grouped = group getPresenceY by presenceOfChildren;
+getByNoOfChildY = foreach grouped generate group as presenceType,SUM(getPresenceY.noOfChildren18OrLess);
+
+create external table custHHLDByTotalChildren
+ (presenceCode string,
+totalNum int)
+ comment 'Households having total no . of children'
+ row format delimited
+ fields terminated by '|'
+ lines terminated by '\n'
+ stored as textfile
+ location '/user/hduser/jig10122/capstone/graded/pigOutTotalChildren' ;
+
+
+
+
+G. How many of the children are male and how many are female? (use GNDR_OF_CHLDRN_0_3  - GNDR_OF_CHLDRN_13_18   column)
+--pig
+
+---> Using Pig :
+
+getGender = foreach householdDataManipulated generate gender0to3,gender10to12,gender13to18,gender4to6,gender7to9;
+getGender1 = foreach getGender generate FLATTEN(TOBAG(*)) as gender
+grouped = group getGender1 by gender;
+getGenderCount = foreach grouped generate group as genderType,COUNT(getGender1) as total;
+
+create external table custHHLDByGender
+(genderCode string,
+totalNum int)
+ comment 'Description of gender types and their numbers'
+ row format delimited
+ fields terminated by '|'
+ lines terminated by '\n'
+ stored as textfile
+ location '/user/hduser/jig10122/capstone/graded/pigOutGenderType'
+
+
+create table final_custHHLDByGenderMF as 
+select a.genderCode,a.totalNum,c.desc  from (select b.gender,b.desc from configdetail c lateral view explode(c.genderCode)b as gender,desc)c
+full outer join custHHLDByGender a
+on a.genderCode=c.gender
+where a.genderCode='M' or a.genderCode='F'
+
